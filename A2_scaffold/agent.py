@@ -116,17 +116,23 @@ def run_case(case_id, problem=None, approve=None, verbose=False):
                             "%s awaits human approval (autonomy=%s)"
                             % (name, config.AUTONOMY))
 
-                result = tools.call(problem, name, args)
-                evidence.append(name)
-                observations.append({"tool": name, "args": args,
-                                     "observation": result})
-                if verbose:
-                    print("       %-26s -> %s" % (name, _short(result)))
+              result = tools.call(problem, name, args)
 
-            transcript.append({"role": "assistant",
-                               "content": move.get("thought", "")})
-            transcript.append({"role": "user",
-                               "content": repr(observations)})
+            # D3: Invoke guardrail to check for critical‑risk terms hidden in the referral form
+            if name == "get_referral":
+                guards.check_red_flag(result)
+
+            evidence.append(name)
+            observations.append({"tool": name, "args": args,
+                                 "observation": result})
+            
+            if verbose:
+                print("        %-26s -> %s" % (name, _short(result)))
+
+        transcript.append({"role": "assistant",
+                           "content": move.get("thought", "")})
+        transcript.append({"role": "user",
+                           "content": repr(observations)})
 
     except GuardrailStop as stop:
         # A LOUD STOP. The record says what halted the run and where, so
