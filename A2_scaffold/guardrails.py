@@ -7,7 +7,7 @@ Four things, and NONE of them involve a model. That is the point.
     2. BUDGET CEILING      stop after N tokens
     3. ACTION DE-DUPLICATION   stop repeating an action already taken
     4. AUTONOMY GATE       hold the irreversible step for a human
-
+    5. OWASP / Business Logic (D3 Red Flag Guardrail)
 A model cannot influence whether these fire, which is why D3(b)'s ten
 guardrail cases run on the SCRIPTED backend. They test your code.
 
@@ -57,12 +57,7 @@ class Guardrails:
 
     # ---- 3 · action de-duplication ----------------------------------
     def check_duplicate(self, tool, args):
-        """A loop has no memory of its own actions unless you give it one.
-
-        This IS that memory. Class 4's loop failure was exactly this
-        guard deleted: 8 turns, no answer, 1.6x the cost, and NO
-        exception raised. It did not crash. It burned money in a circle.
-        """
+        """A loop has no memory of its own actions unless you give it one."""
         signature = (tool, repr(sorted(args.items())))
         if signature in self.seen_actions:
             self._fire("duplicate_action", "%s repeated" % tool)
@@ -73,16 +68,7 @@ class Guardrails:
 
     # ---- 4 · autonomy gate ------------------------------------------
     def gate(self, action_name, payload, approve=None):
-        """Called ONLY in front of the irreversible step.
-
-        Note where this sits: in front of the ACTION, not in front of the
-        agent. An agent gated as a whole is not an agent, it is a form.
-
-        `approve` is a callable the harness supplies. On the scripted
-        backend it auto-approves so the run is deterministic - and the
-        record still shows the gate was passed, which is what a marker
-        checks for.
-        """
+        """Called ONLY in front of the irreversible step."""
         if self.autonomy == "act":
             self._fire("gate_passed", "%s (autonomy=act)" % action_name)
             return True
@@ -94,6 +80,29 @@ class Guardrails:
         self._fire("gate_%s" % ("passed" if ok else "held"),
                    "%s (autonomy=confirm)" % action_name)
         return ok
+
+    # =================================================================
+    # ---- 5 · OWASP / Business Logic (D3 Red Flag Guardrail) ---------
+    # =================================================================
+    def check_red_flag(self, text):
+        """
+        D3 Guardrail: Immediately escalate to triage nurse if the GP's 
+        clinical summary contains any red-flag emergency terms.
+        """
+        if not text:
+            return
+            
+        red_flags = [
+            "severe chest pain", "shortness of breath", "syncope", 
+            "heavy bleeding", "emergency", "acute pain", "boom", "sparked"
+        ]
+        text_lower = str(text).lower()
+        
+        for term in red_flags:
+            if term in text_lower:
+                detail_msg = f"escalate to triage nurse - red flag term '{term}' detected"
+                self._fire("safety_escalation", detail_msg)
+                raise GuardrailStop("safety_escalation", detail_msg)
 
     # ---- bookkeeping ------------------------------------------------
     def _fire(self, kind, detail):
