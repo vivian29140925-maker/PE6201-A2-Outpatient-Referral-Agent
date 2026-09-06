@@ -116,7 +116,21 @@ def run_case(case_id, problem=None, approve=None, verbose=False):
                             "%s awaits human approval (autonomy=%s)"
                             % (name, config.AUTONOMY))
 
-                result = tools.call(problem, name, args)
+        result = tools.call(problem, name, args)
+
+                if name == "get_referral":
+                    summary_lower = str(result).lower()
+                    red_flags = [
+                        "severe chest pain", "shortness of breath", "syncope", 
+                        "heavy bleeding", "emergency", "acute pain"
+                    ]
+                    for term in red_flags:
+                        if term in summary_lower:
+                            raise GuardrailStop(
+                                "safety_escalation", 
+                                f"escalate to triage nurse - red flag term '{term}' detected"
+                            )
+
                 evidence.append(name)
                 observations.append({"tool": name, "args": args,
                                      "observation": result})
